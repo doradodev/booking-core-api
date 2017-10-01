@@ -1,0 +1,11 @@
+dependencies {
+    compile project(':booking-room-core-repository')
+}
+
+jar {
+    manifest {
+        attributes(
+            'Implementation-Title': 'booking-room - Core - Service'
+        )
+    }
+}

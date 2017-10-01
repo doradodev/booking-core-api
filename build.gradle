@@ -1,0 +1,224 @@
+subprojects {
+
+apply plugin: 'java'
+apply plugin: 'maven'
+apply plugin: 'idea'
+apply plugin: 'eclipse-wtp'
+apply plugin: 'project-report'
+apply plugin: 'jacoco'
+
+project.ext {
+    DEV_ENVIRONMENT = 'DEV'
+    PROD_ENVIRONMENT = 'PROD'
+    UNDEFINED = 'undefined'
+
+    theEnvironment = project.hasProperty('environment') ? "${environment}" : UNDEFINED
+}
+
+ext.runOSCommand = { command, directory ->
+    def output = null
+    try {
+        def process = Runtime.getRuntime().exec(command, null, directory)
+        process.waitForOrKill(5000)
+        def exitValue = process.exitValue()
+        def errorMessage = process.err.text;
+        if (exitValue || errorMessage?.trim()) {
+            errorMessage = errorMessage.replace("\n", " ")
+            if (errorMessage.length() > 100) {
+                errorMessage = errorMessage.substring(0, 95) + " ..."
+            }
+            println "OS command [${command}] exited with code ${exitValue}. Error output: ${errorMessage}."
+        } else {
+            output = process.text.trim()
+        }
+    } catch (Exception ex) {
+        println "Error running OS command [${command}]. Error message: ${ex.message}."
+    }
+
+    return (output ? output : UNDEFINED)
+}
+
+ext.getCommitHash = { project ->
+    return runOSCommand("git rev-parse --short HEAD", project.projectDir)
+}
+
+ext.getFormatedCommitTimestamp = { project, format ->
+    def commitDateString = runOSCommand("git log -1 --format=%cd HEAD", project.projectDir)
+    if (commitDateString != UNDEFINED) {
+        def commitDate = new java.text.SimpleDateFormat("EE MMM dd HH:mm:ss yyyy Z", Locale.US).parse(commitDateString)
+
+        return commitDate.format(format, TimeZone.getTimeZone('GMT'))
+    }
+
+    return UNDEFINED
+}
+
+ext.getCommitTimestamp = { project ->
+    return getFormatedCommitTimestamp(project, "yyyyMMddHHmm")
+}
+
+ext.getShortCommitTimestamp = { project ->
+    return getFormatedCommitTimestamp(project, "yyyyMMdd")
+}
+
+subprojects {
+    task wrapper(type: Wrapper) {
+        gradleVersion = '3.1'
+    }
+
+    task showVersion << {
+        println "${project.version}"
+    }
+}
+
+
+ext {
+    
+
+    theReleaseNumber = project.hasProperty('releaseNumber') ? "${releaseNumber}" : UNDEFINED
+    theVersionSuffix = project.hasProperty('versionSuffix') ? "${versionSuffix}" : UNDEFINED
+    theArtifactSuffix = project.hasProperty('artifactSuffix') ? "${artifactSuffix}" : UNDEFINED
+
+    if (theEnvironment == PROD_ENVIRONMENT) {
+        def commit = getCommitHash(project)
+        def timestamp = getShortCommitTimestamp(project)
+
+        theVersionSuffix = ".${timestamp}-${commit}"
+        if (project.hasProperty('buildNumber')) {
+            theVersionSuffix += "-${buildNumber}"
+        }
+        theArtifactSuffix = '.+'
+        theNexusRepository = 'mutual'
+    } else if (theEnvironment == DEV_ENVIRONMENT) {
+        theVersionSuffix = '-SNAPSHOT'
+        theArtifactSuffix = '-SNAPSHOT'
+        
+    } else if (theEnvironment == UNDEFINED) {
+        theVersionSuffix = '-LOCAL'
+        theArtifactSuffix = '-SNAPSHOT'
+        
+    } else {
+        throw new RuntimeException("Not valid build environment [${theEnvironment}]!")
+    }
+}
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+[compileJava, compileTestJava, javadoc]*.options*.encoding = 'UTF-8'
+
+version = "${theReleaseNumber}${theVersionSuffix}"
+
+configurations.all {
+    resolutionStrategy {
+        eachDependency { DependencyResolveDetails details ->
+            def requested = details.requested
+            if (requested.group.startsWith('com.doradodev.digital.factory')) {
+                def requestedVersion = requested.version
+                if (!requestedVersion.contains('-')) {
+                    details.useVersion "${requestedVersion}${theArtifactSuffix}"
+                }
+            }
+        }
+
+        cacheDynamicVersionsFor 0, 'seconds'
+        cacheChangingModulesFor 0, 'seconds'
+    }
+}
+
+task sourcesJar(type: Jar, dependsOn: classes) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
+}
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+    classifier = 'javadoc'
+    from javadoc.destinationDir
+}
+
+artifacts {
+    archives jar
+    archives sourcesJar
+    archives javadocJar
+}
+
+repositories {
+    mavenLocal()    
+    mavenCentral()
+    jcenter()
+}
+
+install {
+    repositories.mavenInstaller {
+        pom.version = "${version}"
+    }
+}
+
+eclipse {
+    classpath {
+        downloadSources = true
+        downloadJavadoc = true
+    }
+}
+
+idea {
+    module {
+        downloadJavadoc = true
+        downloadSources = true
+    }
+}
+
+jacoco {
+    toolVersion = "0.7.4+"
+    reportsDir = file("$buildDir/reports/jacoco")
+}
+
+}
+apply plugin: 'org.sonarqube'
+
+buildscript {
+    repositories {
+        mavenLocal()
+        mavenCentral()
+        maven { url 'https://plugins.gradle.org/m2/' }
+    }
+
+    dependencies {
+        classpath 'org.ajoberstar:gradle-jacoco:0.3.0'
+        classpath "org.sonarsource.scanner.gradle:sonarqube-gradle-plugin:2.1"
+    }
+}
+
+ext {
+    springVersion = '4.3.2.RELEASE'
+    springSecurityVersion = '4.1.1.RELEASE'
+    springBootVersion = '1.4.0.RELEASE'
+}
+
+subprojects {
+    
+
+dependencies {
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+    testCompile group: 'org.mockito', name: 'mockito-all', version: '1.10.19'
+    testCompile group: 'org.powermock', name: 'powermock-module-junit4', version: '1.6.5'
+    testCompile group: 'org.powermock', name: 'powermock-api-mockito', version: '1.6.5'
+
+    testCompile group: 'org.springframework', name: 'spring-test', version: springVersion
+}
+
+jar {
+    manifest {
+        attributes(
+            'Implementation-Version': "${version}",
+            'Created-By': 'cdorado330@gmail.com',
+            'Built-By': System.getProperty('user.name'),
+            'Built-Date': new Date().format('yyyy-MM-dd HH:mm:ss'),
+            'Built-Commit-ID': getCommitHash(project),
+            'Built-Commit-Timestamp': getCommitTimestamp(project)
+        )
+    }
+}
+
+}
+
+

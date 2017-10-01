@@ -1,0 +1,8 @@
+rootProject.name = 'booking-room-core'
+
+include "booking-room-core-commons",
+		"booking-room-core-entity",
+        "booking-room-core-repository",
+        "booking-room-core-service",       
+        "booking-room-core-api",          
+        "booking-room-core-starter"

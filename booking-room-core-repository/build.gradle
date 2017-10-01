@@ -1,0 +1,22 @@
+dependencies {
+    compile project(':booking-room-core-entity')
+
+    compile group: 'org.springframework', name: 'spring-aspects', version: springVersion
+    
+	compile group: 'org.hibernate', name: 'hibernate-core', version: '4.3.11.Final'
+    compile group: 'org.hibernate', name: 'hibernate-entitymanager', version: '4.3.11.Final'    
+	compile group: 'org.hibernate', name: 'hibernate-validator', version: '4.3.2.Final'
+	compile group: 'org.hibernate.common', name: 'hibernate-commons-annotations', version: '4.0.3.Final'
+	
+	compile group: 'com.h2database', name: 'h2', version: '1.4.191'
+    
+    compile group: 'com.zaxxer', name: 'HikariCP', version: '2.4.7'     
+}
+
+jar {
+    manifest {
+        attributes(
+            'Implementation-Title': 'booking-room - Core - Repository'
+        )
+    }
+}

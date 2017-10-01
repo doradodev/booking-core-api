@@ -1,0 +1,24 @@
+apply plugin: 'application'
+
+mainClassName = 'com.doradodev.digital.factory.App'
+
+dependencies {
+    compile project(':booking-room-core-api')
+
+    compile group: 'org.springframework.boot', name: 'spring-boot-starter', version: springBootVersion
+}
+
+jar {
+    manifest {
+        attributes(
+            'Implementation-Title': 'booking-room - Core - Starter',
+            'Main-Class': mainClassName
+        )
+    }
+}
+
+run {
+        
+    environment 'COM_DORADODEV_API_PORT', '8081'
+    environment 'COM_DORADODEV_ENV', 'DEV'
+}
