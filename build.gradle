@@ -69,6 +69,9 @@ subprojects {
     task showVersion << {
         println "${project.version}"
     }
+
+    task stage(dependsOn: ['build', 'clean'])
+    build.mustRunAfter clean
 }
 
 
